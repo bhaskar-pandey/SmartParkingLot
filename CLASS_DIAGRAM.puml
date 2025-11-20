@@ -1,0 +1,273 @@
+@startuml Smart_Parking_Lot_Class_Diagram
+!theme plain
+skinparam classBackgroundColor #FEFCE8
+skinparam classBorderColor #333333
+skinparam arrowColor #333333
+skinparam backgroundColor #FFFFFF
+
+' ============== ENUMS ==============
+enum VehicleType {
+    CAR
+    BUS
+    TRUCK
+}
+
+enum SpotType {
+    SMALL
+    MEDIUM
+    LARGE
+}
+
+' ============== CORE MODELS ==============
+class Vehicle {
+    - licenseNumber: String
+    - type: VehicleType
+    ---
+    + Vehicle(licenseNumber: String, type: VehicleType)
+    + getLicenseNumber(): String
+    + getType(): VehicleType
+}
+
+class ParkingSpot {
+    - id: String
+    - spotType: SpotType
+    - isOccupied: boolean
+    - parkedVehicle: Vehicle
+    - lock: ReentrantReadWriteLock
+    ---
+    + ParkingSpot(id: String, spotType: SpotType)
+    + canFitVehicle(vehicle: Vehicle): boolean
+    + tryParkVehicle(vehicle: Vehicle): boolean
+    + removeVehicle(): void
+    + isOccupied(): boolean
+    + getId(): String
+    + getSpotType(): SpotType
+    + getParkedVehicle(): Vehicle
+}
+
+class ParkingFloor {
+    - floorId: String
+    - spotMap: Map<SpotType, Set<ParkingSpot>>
+    - displayPanel: FloorDisplayPanel
+    - underMaintenance: boolean
+    ---
+    + ParkingFloor(floorId: String)
+    + addSpot(spot: ParkingSpot): void
+    + getAvailableSpot(vehicle: Vehicle): ParkingSpot
+    + getAllSpots(): Set<ParkingSpot>
+    + getFloorId(): String
+    + isUnderMaintenance(): boolean
+    + setUnderMaintenance(status: boolean): void
+    + getSpotMap(): Map<SpotType, Set<ParkingSpot>>
+    + showFloorDisplay(): void
+    + isFull(): boolean
+    + getSpotById(spotId: String): ParkingSpot
+}
+
+class ParkingTicket {
+    - ticketId: String
+    - vehicle: Vehicle
+    - spotId: String
+    - spotType: String
+    - entryTime: long
+    ---
+    + ParkingTicket(ticketId: String, vehicle: Vehicle, spotId: String, spotType: String)
+    + getTicketId(): String
+    + getVehicle(): Vehicle
+    + getSpotId(): String
+    + getSpotType(): String
+    + getEntryTime(): long
+    + printTicket(): String
+}
+
+class ParkingTicketGenerator {
+    ---
+    + generateTicket(vehicle: Vehicle, spot: ParkingSpot): ParkingTicket
+}
+
+' ============== STRATEGIES ==============
+interface ParkingStrategy {
+    + findSpot(vehicle: Vehicle, parkingLot: ParkingLot): ParkingSpot
+}
+
+class NearestAvailableSpotStrategy {
+    ---
+    + findSpot(vehicle: Vehicle, parkingLot: ParkingLot): ParkingSpot
+}
+
+class RandomSpotStrategy {
+    ---
+    + findSpot(vehicle: Vehicle, parkingLot: ParkingLot): ParkingSpot
+}
+
+interface CostComputationStrategy {
+    + computeCost(ticket: ParkingTicket): double
+}
+
+class StandardCostComputationStrategy {
+    ---
+    + computeCost(ticket: ParkingTicket): double
+}
+
+class PremiumCostComputationStrategy {
+    ---
+    + computeCost(ticket: ParkingTicket): double
+}
+
+interface PaymentProcessor {
+    + processPayment(amount: double): boolean
+}
+
+class CardPaymentProcessor {
+    ---
+    + processPayment(amount: double): boolean
+}
+
+class CashPaymentProcessor {
+    ---
+    + processPayment(amount: double): boolean
+}
+
+' ============== PANELS ==============
+class EntryPanel {
+    - strategy: ParkingStrategy
+    - displayPanel: EntryDisplayPanel
+    - ticketGenerator: ParkingTicketGenerator
+    - {static} MAX_RETRIES: int = 3
+    ---
+    + EntryPanel(strategy: ParkingStrategy)
+    + EntryPanel(strategy: ParkingStrategy, ticketGenerator: ParkingTicketGenerator)
+    + changeStrategy(strategy: ParkingStrategy): void
+    + parkVehicle(vehicle: Vehicle, parkingLot: ParkingLot): ParkingTicket
+}
+
+class ExitPanel {
+    - displayPanel: ExitDisplayPanel
+    - paymentProcessor: PaymentProcessor
+    - costStrategy: CostComputationStrategy
+    ---
+    + ExitPanel(paymentProcessor: PaymentProcessor, costStrategy: CostComputationStrategy)
+    + unparkVehicle(ticket: ParkingTicket, parkingLot: ParkingLot): void
+}
+
+' ============== DISPLAY PANELS ==============
+class EntryDisplayPanel {
+    ---
+    + displayTicketIssued(ticket: ParkingTicket): void
+}
+
+class ExitDisplayPanel {
+    ---
+    + displayCost(vehicle: Vehicle, cost: double): void
+    + displayExitSuccess(vehicle: Vehicle): void
+    + displayError(message: String): void
+}
+
+class FloorDisplayPanel {
+    - floorId: String
+    ---
+    + FloorDisplayPanel(floorId: String)
+    + displayAvailableSpots(spotMap: Map<SpotType, Set<ParkingSpot>>, underMaintenance: boolean): void
+}
+
+' ============== MAIN COORDINATOR ==============
+class ParkingLot {
+    - floors: List<ParkingFloor>
+    - entryPanel: EntryPanel
+    - exitPanel: ExitPanel
+    - activeTickets: Map<String, ParkingTicket>
+    ---
+    + ParkingLot(strategy: ParkingStrategy, paymentProcessor: PaymentProcessor, costStrategy: CostComputationStrategy)
+    + addFloor(floor: ParkingFloor): void
+    + getFloors(): List<ParkingFloor>
+    + getEntryPanel(): EntryPanel
+    + getExitPanel(): ExitPanel
+    + changeStrategy(strategy: ParkingStrategy): void
+    + issueTicket(ticket: ParkingTicket): void
+    + getTicket(ticketId: String): ParkingTicket
+    + setExitPanel(exitPanel: ExitPanel): void
+    + getSpotById(spotId: String): ParkingSpot
+    + isParkingLotFull(): void
+}
+
+' ============== MAIN APPLICATION ==============
+class Main {
+    ---
+    + {static} main(args: String[]): void
+    - {static} testSequentialParking(): void
+    - {static} testConcurrentParking(): void
+}
+
+' ============== RELATIONSHIPS ==============
+
+' Composition/Containment
+ParkingLot --> "1" EntryPanel
+ParkingLot --> "1" ExitPanel
+ParkingLot --> "*" ParkingFloor
+ParkingFloor --> "*" ParkingSpot
+ParkingSpot --> "1" Vehicle
+
+' Strategy Pattern
+EntryPanel ..> ParkingStrategy
+ParkingLot ..> ParkingStrategy
+ExitPanel ..> CostComputationStrategy
+ExitPanel ..> PaymentProcessor
+
+' Implementations
+NearestAvailableSpotStrategy --|> ParkingStrategy
+RandomSpotStrategy --|> ParkingStrategy
+StandardCostComputationStrategy --|> CostComputationStrategy
+PremiumCostComputationStrategy --|> CostComputationStrategy
+CardPaymentProcessor --|> PaymentProcessor
+CashPaymentProcessor --|> PaymentProcessor
+
+' Data Models
+ParkingTicket --> "1" Vehicle
+ParkingTicket --> "1" ParkingSpot
+Vehicle --> "1" VehicleType
+ParkingSpot --> "1" SpotType
+ParkingFloor --> "1" FloorDisplayPanel
+EntryPanel --> "1" EntryDisplayPanel
+ExitPanel --> "1" ExitDisplayPanel
+ParkingTicketGenerator --> ParkingTicket
+
+' Main Application
+Main ..> ParkingLot
+Main ..> Vehicle
+Main ..> ParkingFloor
+Main ..> ParkingSpot
+
+note right of ParkingSpot
+    ⭐ **Thread-Safe Component**
+    Uses ReentrantReadWriteLock
+    for atomic spot reservation
+
+    tryParkVehicle(): CAS-like
+    atomic operation with
+    double-check pattern
+end note
+
+note right of EntryPanel
+    Implements retry logic with
+    max 3 retries and 10ms backoff
+
+    If spot taken by another thread,
+    retries with different spot
+end note
+
+note right of ParkingLot
+    Main coordinator and
+    facade for parking operations
+
+    Thread-safe ticket registry
+    using Collections.synchronizedMap()
+end note
+
+legend right
+    |<#FFE4B5> Core Component |
+    |<#E0F4FF> Strategy Interface |
+    |<#F0F0F0> Implementation |
+    |<#E8F8E8> Display Component |
+end legend
+
+@enduml
